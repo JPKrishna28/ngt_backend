@@ -49,42 +49,7 @@ router.post('/register', protect, admin, async (req, res) => {
   }
 });
 
-// @desc    Public registration for employees
-// @route   POST /api/auth/public-register
-// @access  Public
-router.post('/public-register', async (req, res) => {
-  try {
-    const { employeeId, name, password } = req.body;
-
-    // Check if employee already exists
-    const employeeExists = await User.findOne({ employeeId });
-    if (employeeExists) {
-      return res.status(400).json({ message: 'Employee ID already exists' });
-    }
-
-    // Create new employee (always as regular employee)
-    const employee = await User.create({
-      employeeId,
-      name,
-      password,
-      role: 'employee', // Force role to be employee for public registrations
-    });
-
-    if (employee) {
-      res.status(201).json({
-        _id: employee._id,
-        employeeId: employee.employeeId,
-        name: employee.name,
-        role: employee.role,
-      });
-    } else {
-      res.status(400).json({ message: 'Invalid employee data' });
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+// REMOVED: public-register route has been removed to disable public registration
 
 // @desc    Login employee
 // @route   POST /api/auth/login

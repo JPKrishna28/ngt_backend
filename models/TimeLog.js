@@ -1,45 +1,42 @@
 const mongoose = require('mongoose');
 
-const TimeLogSchema = new mongoose.Schema({
-  employeeId: {
-    type: String,
-    required: true,
-    ref: 'User',
-  },
-  loginTime: {
-    type: Date,
-    required: true,
-  },
-  logoutTime: {
-    type: Date,
-    default: null,
-  },
-  totalHours: {
-    type: Number,
-    default: 0,
-  },
-  date: {
-    type: Date,
-    default: function() {
-      const now = new Date();
-      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+const TimeLogSchema = new mongoose.Schema(
+  {
+    employeeId: {
+      type: String,
+      required: true,
+    },
+    loginTime: {
+      type: Date,
+      required: true,
+    },
+    logoutTime: {
+      type: Date,
+    },
+    status: {
+      type: String,
+      enum: ['active', 'completed'],
+      default: 'active',
+    },
+    totalHours: {
+      type: Number,
+      default: 0,
+    },
+    adjustedHours: {
+      type: Number,
+      default: 0, // This will store the hours after lunch break deduction
+    },
+    lunchBreakDeducted: {
+      type: Boolean,
+      default: false, // Flag to track if lunch break was already deducted
+    },
+    notes: {
+      type: String,
     },
   },
-  status: {
-    type: String,
-    enum: ['active', 'completed'],
-    default: 'active',
-  },
-});
-
-// Calculate total hours when logging out
-TimeLogSchema.methods.calculateHours = function() {
-  if (this.logoutTime && this.loginTime) {
-    const diff = this.logoutTime - this.loginTime;
-    this.totalHours = diff / (1000 * 60 * 60); // Convert ms to hours
-    return this.totalHours;
+  {
+    timestamps: true,
   }
-  return 0;
-};
+);
 
 module.exports = mongoose.model('TimeLog', TimeLogSchema);
