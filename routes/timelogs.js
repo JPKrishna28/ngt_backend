@@ -2,35 +2,6 @@ const express = require('express');
 const TimeLog = require('../models/TimeLog');
 const { protect, admin } = require('../middleware/authMiddleware');
 const router = express.Router();
-const moment = require('moment');
-
-// Helper function for lunch break deduction
-const applyLunchBreakDeduction = (loginTime, logoutTime) => {
-  const login = new Date(loginTime);
-  const logout = new Date(logoutTime);
-  
-  // Calculate total hours worked
-  const totalMilliseconds = logout - login;
-  const totalHours = totalMilliseconds / (1000 * 60 * 60);
-  
-  // Only deduct lunch if worked more than 5 hours
-  if (totalHours >= 5) {
-    // Deduct 1 hour for lunch break
-    const adjustedHours = Math.max(0, totalHours - 1);
-    return { 
-      totalHours: parseFloat(totalHours.toFixed(2)), 
-      adjustedHours: parseFloat(adjustedHours.toFixed(2)),
-      lunchBreakDeducted: true 
-    };
-  }
-  
-  // If worked less than 5 hours, no lunch break deduction
-  return { 
-    totalHours: parseFloat(totalHours.toFixed(2)), 
-    adjustedHours: parseFloat(totalHours.toFixed(2)),
-    lunchBreakDeducted: false 
-  };
-};
 
 // @desc    Log in (clock in) for the day
 // @route   POST /api/timelogs/login
@@ -78,23 +49,115 @@ router.put('/logout', protect, async (req, res) => {
       return res.status(400).json({ message: 'No active session found' });
     }
 
+    // Make sure all breaks are completed
+    const activeBreak = activeSession.breaks.find(b => b.status === 'active');
+    if (activeBreak) {
+      return res.status(400).json({ message: 'Please end your break before logging out' });
+    }
+
     const logoutTime = new Date();
     
-    // Calculate hours and apply lunch break deduction
-    const { totalHours, adjustedHours, lunchBreakDeducted } = applyLunchBreakDeduction(
-      activeSession.loginTime,
-      logoutTime
-    );
+    // Calculate total work hours
+    const totalMilliseconds = logoutTime - activeSession.loginTime;
+    let totalHours = totalMilliseconds / (1000 * 60 * 60);
+    
+    // Calculate net work hours (total - breaks)
+    const netWorkHours = totalHours - activeSession.totalBreakHours;
 
     // Update the time log
     activeSession.logoutTime = logoutTime;
     activeSession.status = 'completed';
-    activeSession.totalHours = totalHours;
-    activeSession.adjustedHours = adjustedHours;
-    activeSession.lunchBreakDeducted = lunchBreakDeducted;
+    activeSession.totalHours = parseFloat(totalHours.toFixed(2));
+    activeSession.netWorkHours = parseFloat(netWorkHours.toFixed(2));
 
     const updatedTimeLog = await activeSession.save();
     res.json(updatedTimeLog);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @desc    Start a break
+// @route   POST /api/timelogs/break/start
+// @access  Private
+router.post('/break/start', protect, async (req, res) => {
+  try {
+    // Find the active session
+    const activeSession = await TimeLog.findOne({
+      employeeId: req.user.employeeId,
+      status: 'active',
+    });
+
+    if (!activeSession) {
+      return res.status(400).json({ message: 'No active work session found' });
+    }
+
+    // Check if there's already an active break
+    const hasActiveBreak = activeSession.breaks.some(
+      (breakEntry) => breakEntry.status === 'active'
+    );
+
+    if (hasActiveBreak) {
+      return res.status(400).json({ message: 'You already have an active break' });
+    }
+
+    // Add a new break
+    activeSession.breaks.push({
+      startTime: new Date(),
+      status: 'active',
+    });
+
+    const updatedSession = await activeSession.save();
+    res.json(updatedSession);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @desc    End a break
+// @route   PUT /api/timelogs/break/end
+// @access  Private
+router.put('/break/end', protect, async (req, res) => {
+  try {
+    // Find the active session
+    const activeSession = await TimeLog.findOne({
+      employeeId: req.user.employeeId,
+      status: 'active',
+    });
+
+    if (!activeSession) {
+      return res.status(400).json({ message: 'No active work session found' });
+    }
+
+    // Find the active break
+    const activeBreakIndex = activeSession.breaks.findIndex(
+      (breakEntry) => breakEntry.status === 'active'
+    );
+
+    if (activeBreakIndex === -1) {
+      return res.status(400).json({ message: 'No active break found' });
+    }
+
+    // Calculate break duration
+    const breakEntry = activeSession.breaks[activeBreakIndex];
+    const endTime = new Date();
+    const durationMs = endTime - breakEntry.startTime;
+    const durationHours = durationMs / (1000 * 60 * 60);
+
+    // Update the break entry
+    breakEntry.endTime = endTime;
+    breakEntry.status = 'completed';
+    breakEntry.duration = parseFloat(durationHours.toFixed(2));
+
+    // Update total break hours
+    activeSession.totalBreakHours = parseFloat(
+      (activeSession.totalBreakHours + durationHours).toFixed(2)
+    );
+
+    const updatedSession = await activeSession.save();
+    res.json(updatedSession);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });

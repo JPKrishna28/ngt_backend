@@ -1,5 +1,25 @@
 const mongoose = require('mongoose');
 
+// Break schema (sub-document)
+const BreakSchema = new mongoose.Schema({
+  startTime: {
+    type: Date,
+    required: true
+  },
+  endTime: {
+    type: Date
+  },
+  status: {
+    type: String,
+    enum: ['active', 'completed'],
+    default: 'active'
+  },
+  duration: {
+    type: Number,
+    default: 0 // Duration in hours
+  }
+}, { _id: false });
+
 const TimeLogSchema = new mongoose.Schema(
   {
     employeeId: {
@@ -22,13 +42,14 @@ const TimeLogSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    adjustedHours: {
+    breaks: [BreakSchema],
+    totalBreakHours: {
       type: Number,
-      default: 0, // This will store the hours after lunch break deduction
+      default: 0, // Total break time in hours
     },
-    lunchBreakDeducted: {
-      type: Boolean,
-      default: false, // Flag to track if lunch break was already deducted
+    netWorkHours: {
+      type: Number,
+      default: 0, // Working hours excluding breaks
     },
     notes: {
       type: String,
