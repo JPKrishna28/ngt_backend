@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-exports.protect = async (req, res, next) => {
+// Protect middleware
+const protect = async (req, res, next) => {
   let token;
 
   if (
@@ -30,10 +31,23 @@ exports.protect = async (req, res, next) => {
   }
 };
 
-exports.admin = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
+// Admin middleware
+const admin = (req, res, next) => {
+  if (req.user && (req.user.role === 'admin' || req.user.role === 'superadmin')) {
     next();
   } else {
-    res.status(401).json({ message: 'Not authorized as an admin' });
+    res.status(403).json({ message: 'Access denied. Admin role required.' });
   }
 };
+
+// Super Admin middleware
+const superAdmin = (req, res, next) => {
+  if (req.user && req.user.role === 'superadmin') {
+    next();
+  } else {
+    res.status(403).json({ message: 'Access denied. Super Admin role required.' });
+  }
+};
+
+// Export all middleware functions
+module.exports = { protect, admin, superAdmin };

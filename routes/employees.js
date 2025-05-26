@@ -8,98 +8,39 @@ const TimeLog = require('../models/TimeLog');
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
-// @desc    Get all employees
-// @route   GET /api/employees
-// @access  Admin
-router.get('/', protect, admin, async (req, res) => {
-  try {
-    const employees = await User.find({}).select('-password');
-    res.json(employees);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+// Helper function to check if user is admin or superadmin
+const isAdminOrSuperadmin = (req, res, next) => {
+  if (req.user && (req.user.role === 'admin' || req.user.role === 'superadmin')) {
+    next();
+  } else {
+    res.status(403).json({ message: 'Access denied. Admin or Superadmin role required.' });
   }
-});
+};
 
-// @desc    Get employee by ID
-// @route   GET /api/employees/:id
-// @access  Admin
-router.get('/:id', protect, admin, async (req, res) => {
+// @desc    Get all users (including admins and superadmins) - SUPERADMIN ONLY
+// @route   GET /api/employees/all
+// @access  Superadmin
+router.get('/all', protect, async (req, res) => {
   try {
-    const employee = await User.findOne({ employeeId: req.params.id }).select('-password');
-    if (employee) {
-      res.json(employee);
-    } else {
-      res.status(404).json({ message: 'Employee not found' });
+    // Only allow superadmins to access this route
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ message: 'Access denied. Superadmin role required.' });
     }
+    
+    console.log('Fetching all users for superadmin:', req.user.employeeId);
+    const users = await User.find({}).select('-password').sort({ createdAt: -1 });
+    console.log(`Found ${users.length} users`);
+    res.json(users);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// @desc    Update employee
-// @route   PUT /api/employees/:id
-// @access  Admin
-router.put('/:id', protect, admin, async (req, res) => {
-  try {
-    const employee = await User.findOne({ employeeId: req.params.id });
-    if (employee) {
-      employee.name = req.body.name || employee.name;
-      employee.role = req.body.role || employee.role;
-      if (req.body.password) {
-        employee.password = req.body.password;
-      }
-      const updatedEmployee = await employee.save();
-      res.json({
-        _id: updatedEmployee._id,
-        employeeId: updatedEmployee.employeeId,
-        name: updatedEmployee.name,
-        role: updatedEmployee.role,
-      });
-    } else {
-      res.status(404).json({ message: 'Employee not found' });
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// @desc    Delete employee
-// @route   DELETE /api/employees/:id
-// @access  Admin
-// @access  Admin
-router.delete('/:id', protect, admin, async (req, res) => {
-  try {
-    const employee = await User.findOne({ employeeId: req.params.id });
-    
-    if (!employee) {
-      return res.status(404).json({ message: 'Employee not found' });
-    }
-    
-    // Prevent self-deletion
-    if (employee.employeeId === req.user.employeeId) {
-      return res.status(400).json({ message: 'You cannot delete your own account' });
-    }
-    
-    // Instead of employee.remove(), use deleteOne()
-    await User.deleteOne({ _id: employee._id });
-    
-    // Optional: Delete associated time logs
-    await TimeLog.deleteMany({ employeeId: req.params.id });
-    
-    res.json({ message: 'Employee removed successfully' });
-  } catch (error) {
-    console.error(error);
+    console.error('Error fetching all users:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
 // @desc    Upload CSV to create employees in bulk
 // @route   POST /api/employees/upload-csv
-// @access  Admin
-router.post('/upload-csv', protect, admin, upload.single('file'), async (req, res) => {
+// @access  Admin or Superadmin
+router.post('/upload-csv', protect, isAdminOrSuperadmin, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
@@ -136,7 +77,24 @@ router.post('/upload-csv', protect, admin, upload.single('file'), async (req, re
     res.status(500).json({ message: 'Error uploading CSV' });
   }
 });
-router.get('/:id/details', protect, admin, async (req, res) => {
+
+// @desc    Get all employees
+// @route   GET /api/employees
+// @access  Admin or Superadmin
+router.get('/', protect, isAdminOrSuperadmin, async (req, res) => {
+  try {
+    const employees = await User.find({}).select('-password');
+    res.json(employees);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @desc    Get employee details with stats
+// @route   GET /api/employees/:id/details
+// @access  Admin or Superadmin
+router.get('/:id/details', protect, isAdminOrSuperadmin, async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -158,6 +116,95 @@ router.get('/:id/details', protect, admin, async (req, res) => {
       timeLogs,
       stats
     });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @desc    Get employee by ID
+// @route   GET /api/employees/:id
+// @access  Admin or Superadmin
+router.get('/:id', protect, isAdminOrSuperadmin, async (req, res) => {
+  try {
+    const employee = await User.findOne({ employeeId: req.params.id }).select('-password');
+    if (employee) {
+      res.json(employee);
+    } else {
+      res.status(404).json({ message: 'Employee not found' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @desc    Update employee
+// @route   PUT /api/employees/:id
+// @access  Admin or Superadmin
+router.put('/:id', protect, isAdminOrSuperadmin, async (req, res) => {
+  try {
+    const employee = await User.findOne({ employeeId: req.params.id });
+    if (employee) {
+      employee.name = req.body.name || employee.name;
+      
+      // Only allow role changes if the user is a superadmin or if not modifying a superadmin
+      if (req.user.role === 'superadmin' || (employee.role !== 'superadmin' && req.body.role)) {
+        employee.role = req.body.role || employee.role;
+      } else if (req.body.role && req.body.role !== employee.role) {
+        return res.status(403).json({ 
+          message: 'Only superadmins can modify the role of a superadmin user' 
+        });
+      }
+      
+      if (req.body.password) {
+        employee.password = req.body.password;
+      }
+      
+      const updatedEmployee = await employee.save();
+      res.json({
+        _id: updatedEmployee._id,
+        employeeId: updatedEmployee.employeeId,
+        name: updatedEmployee.name,
+        role: updatedEmployee.role,
+      });
+    } else {
+      res.status(404).json({ message: 'Employee not found' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @desc    Delete employee
+// @route   DELETE /api/employees/:id
+// @access  Admin or Superadmin
+router.delete('/:id', protect, isAdminOrSuperadmin, async (req, res) => {
+  try {
+    const employee = await User.findOne({ employeeId: req.params.id });
+    
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' });
+    }
+    
+    // Prevent self-deletion
+    if (employee.employeeId === req.user.employeeId) {
+      return res.status(400).json({ message: 'You cannot delete your own account' });
+    }
+    
+    // Only superadmins can delete other superadmins
+    if (employee.role === 'superadmin' && req.user.role !== 'superadmin') {
+      return res.status(403).json({ message: 'Only superadmins can delete superadmin accounts' });
+    }
+    
+    // Instead of employee.remove(), use deleteOne()
+    await User.deleteOne({ _id: employee._id });
+    
+    // Optional: Delete associated time logs
+    await TimeLog.deleteMany({ employeeId: req.params.id });
+    
+    res.json({ message: 'Employee removed successfully' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
@@ -293,7 +340,5 @@ const calculateEmployeeStats = (timeLogs) => {
   
   return stats;
 };
-
-
 
 module.exports = router;

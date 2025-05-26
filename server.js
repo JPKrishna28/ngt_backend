@@ -11,6 +11,7 @@ dotenv.config();
 const authRoutes = require('./routes/auth');
 const employeeRoutes = require('./routes/employees');
 const timelogRoutes = require('./routes/timelogs');
+const adminManagementRoutes = require('./routes/adminManagement');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -19,7 +20,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
-
+app.use('/api/auth', authRoutes);
 // Connect to MongoDB
 mongoose
   .connect(process.env.MONGO_URI)
@@ -30,7 +31,7 @@ mongoose
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/timelogs', timelogRoutes);
-
+app.use('/api/admin-management', adminManagementRoutes);
 // Root route
 app.get('/', (req, res) => {
   res.send('Employee Time Tracker API is running');
