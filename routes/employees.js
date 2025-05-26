@@ -69,15 +69,27 @@ router.put('/:id', protect, admin, async (req, res) => {
 // @desc    Delete employee
 // @route   DELETE /api/employees/:id
 // @access  Admin
+// @access  Admin
 router.delete('/:id', protect, admin, async (req, res) => {
   try {
     const employee = await User.findOne({ employeeId: req.params.id });
-    if (employee) {
-      await employee.remove();
-      res.json({ message: 'Employee removed' });
-    } else {
-      res.status(404).json({ message: 'Employee not found' });
+    
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' });
     }
+    
+    // Prevent self-deletion
+    if (employee.employeeId === req.user.employeeId) {
+      return res.status(400).json({ message: 'You cannot delete your own account' });
+    }
+    
+    // Instead of employee.remove(), use deleteOne()
+    await User.deleteOne({ _id: employee._id });
+    
+    // Optional: Delete associated time logs
+    await TimeLog.deleteMany({ employeeId: req.params.id });
+    
+    res.json({ message: 'Employee removed successfully' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
@@ -281,4 +293,7 @@ const calculateEmployeeStats = (timeLogs) => {
   
   return stats;
 };
+
+
+
 module.exports = router;
