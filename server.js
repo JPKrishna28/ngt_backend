@@ -12,6 +12,12 @@ const authRoutes = require('./routes/auth');
 const employeeRoutes = require('./routes/employees');
 const timelogRoutes = require('./routes/timelogs');
 const adminManagementRoutes = require('./routes/adminManagement');
+// Add this line where you define your routes
+const offerRoutes = require('./routes/offerRoutes');
+const emailRoutes = require('./routes/emailRoutes');
+const fileRoutes = require('./routes/fileRoutes');
+
+// Add this line where you mount your routes
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -21,6 +27,10 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 app.use('/api/auth', authRoutes);
+app.use('/api/offers', offerRoutes);
+app.use('/api/email', emailRoutes);
+app.use('/api/files', fileRoutes);
+app.use('/api/files', fileRoutes);
 // Connect to MongoDB
 mongoose
   .connect(process.env.MONGO_URI)
